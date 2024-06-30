@@ -40,8 +40,6 @@ endif
 # Info
 ###############################################################################
 
-.PHONY: certs config terraform kubernetes
-
 default: help settings
 
 help:
@@ -49,7 +47,8 @@ help:
 	$(call help,make google,Configure Google CLI)
 	$(call help,make google-auth,Authenticate Google CLI)
 	$(call help,make terraform,Run Terraform plan and apply)
-	$(call help,make release, Trigger GitHub pipeline deployment)
+	$(call help,make shutdown,Remove selected Terraform resources)
+	$(call help,make release,Trigger GitHub pipeline deployment)
 
 settings: terraform-config
 	$(call header,Settings)
@@ -63,13 +62,15 @@ settings: terraform-config
 
 deploy : terraform
 
-remove: terraform-destroy
+shutdown: terraform-destroy-selected
 
 clean: terraform-clean gke-clean
 
 ###############################################################################
 # Terraform
 ###############################################################################
+
+.PHONY: terraform
 
 terraform: terraform-plan prompt terraform-apply
 
@@ -102,10 +103,17 @@ terraform-apply: terraform-init terraform-validate
 	cd $(terraform_dir)
 	terraform apply -auto-approve -input=false -refresh=true -var-file="$(terraform_tfvars)"
 
-terraform-destroy: terraform-init
+terraform-destroy-all: terraform-init
 	$(call header,Run Terraform Apply)
 	cd $(terraform_dir)
 	terraform apply -destroy -input=false -refresh=true -var-file="$(terraform_tfvars)"
+
+terraform-destroy-selected: terraform-init
+	$(call header,Run Terraform Apply)
+	cd $(terraform_dir)
+	terraform apply -destroy -var-file="$(terraform_tfvars)" \
+	-target=google_container_cluster.gke1 \
+	-target=google_compute_address.cloud_nat
 
 terraform-clean:
 	$(call header,Delete Terraform providers and state)

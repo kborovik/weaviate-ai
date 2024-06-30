@@ -3,9 +3,10 @@
 ###############################################################################
 locals {
   gke_project_roles = [
-    "roles/cloudsql.admin",
     "roles/logging.logWriter",
     "roles/monitoring.metricWriter",
+    "roles/secretmanager.secretAccessor",
+    "roles/secretmanager.viewer",
     "roles/viewer",
   ]
 }
@@ -24,7 +25,7 @@ resource "google_project_iam_member" "gke1" {
 
 resource "google_container_cluster" "gke1" {
   name                     = "${var.app_id}-01"
-  description              = "${var.app_id} Kubernetes Cluster"
+  description              = "Weaviate AI"
   project                  = var.google_project
   location                 = var.google_region
   deletion_protection      = false
@@ -33,9 +34,25 @@ resource "google_container_cluster" "gke1" {
   network                  = google_compute_network.main.id
   subnetwork               = google_compute_subnetwork.gke_net.id
 
+  datapath_provider                        = "ADVANCED_DATAPATH"
+  enable_cilium_clusterwide_network_policy = false
+
+  release_channel {
+    channel = "REGULAR"
+  }
+
+  security_posture_config {
+    mode               = "BASIC"
+    vulnerability_mode = "VULNERABILITY_BASIC"
+  }
+
+  identity_service_config {
+    enabled = true
+  }
+
   private_cluster_config {
-    enable_private_nodes    = true
     enable_private_endpoint = false
+    enable_private_nodes    = true
     master_ipv4_cidr_block  = "172.31.255.240/28"
 
     master_global_access_config {
@@ -43,10 +60,35 @@ resource "google_container_cluster" "gke1" {
     }
   }
 
+  master_authorized_networks_config {
+    gcp_public_cidrs_access_enabled = true
+    cidr_blocks {
+      display_name = "Bell Canada"
+      cidr_block   = "70.30.0.0/16"
+    }
+    cidr_blocks {
+      display_name = "GCP Internal Network"
+      cidr_block   = google_compute_subnetwork.gke_net.ip_cidr_range
+    }
+  }
+
   master_auth {
     client_certificate_config {
       issue_client_certificate = false
     }
+  }
+
+  ip_allocation_policy {
+    services_secondary_range_name = google_compute_subnetwork.gke_net.secondary_ip_range[1].range_name
+    cluster_secondary_range_name  = google_compute_subnetwork.gke_net.secondary_ip_range[0].range_name
+  }
+
+  logging_config {
+    enable_components = [
+      "SYSTEM_COMPONENTS",
+      "WORKLOADS",
+      "SCHEDULER",
+    ]
   }
 
   maintenance_policy {
@@ -57,24 +99,22 @@ resource "google_container_cluster" "gke1" {
     }
   }
 
-  master_authorized_networks_config {
-    cidr_blocks {
-      display_name = "Bell Canada"
-      cidr_block   = "70.24.0.0/16"
-    }
-    cidr_blocks {
-      display_name = "GCP Internal Network"
-      cidr_block   = google_compute_subnetwork.gke_net.ip_cidr_range
-    }
-  }
+  monitoring_config {
+    enable_components = [
+      "SYSTEM_COMPONENTS",
+      "STORAGE",
+      "DEPLOYMENT",
+      "STATEFULSET",
+    ]
 
-  network_policy {
-    enabled = false
-  }
+    advanced_datapath_observability_config {
+      enable_metrics = true
+      enable_relay   = true
+    }
 
-  ip_allocation_policy {
-    services_secondary_range_name = google_compute_subnetwork.gke_net.secondary_ip_range[1].range_name
-    cluster_secondary_range_name  = google_compute_subnetwork.gke_net.secondary_ip_range[0].range_name
+    managed_prometheus {
+      enabled = true
+    }
   }
 }
 
@@ -92,7 +132,7 @@ resource "google_container_node_pool" "p1" {
 
   node_config {
     service_account = google_service_account.gke1.email
-    preemptible     = var.google_project != "lab5-wvai-prd1" ? true : false
+    spot            = var.google_project != "lab5-wvai-prd1" ? true : false
     machine_type    = var.gke_machine_type
     oauth_scopes    = ["cloud-platform"]
 

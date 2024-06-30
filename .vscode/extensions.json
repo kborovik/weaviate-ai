@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "ms-azuretools.vscode-docker",
+    "hashicorp.terraform",
+    "mads-hartmann.bash-ide-vscode"
+  ]
+}
