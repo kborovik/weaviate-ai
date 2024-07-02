@@ -14,9 +14,10 @@ google_project ?= lab5-wvai-dev1
 # Settings
 ###############################################################################
 
-VERSION := $(file < VERSION)
+WEAVIATE_VERSION := 1.25.6
+VERBA_VERSION := 1.0.3
 
-wvai_version := 1.25.6
+OPENAI_API_KEY := $(shell pass weaviate/OPENAI_API_KEY)
 
 app_id := wvai
 
@@ -38,7 +39,9 @@ ifeq ($(wildcard $(terraform_tfvars)),)
   $(error ==> Missing configuration file $(terraform_tfvars) <==)
 endif
 
-OPENAI_API_KEY := $(shell pass weaviate/OPENAI_API_KEY)
+docker_image := ghcr.io/kborovik/verba
+
+VERSION := $(file < VERSION)
 
 ###############################################################################
 # Info
@@ -56,8 +59,8 @@ help:
 
 settings: terraform-config
 	$(call header,Settings)
-	$(call var,repo_version,$(VERSION))
-	$(call var,weaviate_version,$(wvai_version))
+	$(call var,WEAVIATE_VERSION,$(WEAVIATE_VERSION))
+	$(call var,VERBA_VERSION,$(VERBA_VERSION))
 	$(call var,google_project,$(google_project))
 	$(call var,gcloud_project,$(shell gcloud config list --format=json | jq -r '.core.project'))
 
@@ -73,15 +76,23 @@ deploy : terraform
 
 shutdown: terraform-destroy-selected
 
-clean: terraform-clean gke-clean
+clean: terraform-clean kube-clean
 
 ###############################################################################
 # Docker
 ###############################################################################
 
+docker-build:
+	$(call header,Build Docker Image)
+	docker buildx build --tag="$(docker_image):$(VERBA_VERSION)" \
+	--tag="$(docker_image):latest" \
+	--build-arg="VERBA_VERSION=$(VERBA_VERSION)" - < docker/Dockerfile.verba
+	docker image prune --force
+
 .docker-init:
 	$(call header,Create Weaviate volume)
 	docker volume create weaviate
+	docker volume create verba
 	touch $@
 
 docker-start: .docker-init
@@ -100,6 +111,13 @@ docker-stop:
 docker-clean: docker-stop
 	$(call header,Remove Docker volumes)
 	docker volume rm weaviate || true
+	rm .docker-init
+
+shell-verba:
+	docker container exec --tty --interactive verba-0 /bin/bash
+
+shell-weaviate:
+	docker container exec --tty --interactive weaviate-0 /bin/bash
 
 ###############################################################################
 # Terraform
@@ -152,7 +170,7 @@ terraform-destroy-selected: terraform-init
 
 terraform-clean:
 	$(call header,Delete Terraform providers and state)
-	-rm -rf $(terraform_dir)/.terraform $(terraform_dir)/.terraform.lock.hcl
+	-rm -rf $(terraform_dir)/.terraform
 
 terraform-show:
 	cd $(terraform_dir)

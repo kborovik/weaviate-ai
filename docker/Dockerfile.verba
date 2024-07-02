@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+ARG VERBA_VERSION
+
+ENV debian_frontend=noninteractive
+
+RUN apt update -y && apt install -y curl wget
+
+RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir goldenverba==$VERBA_VERSION
+
+EXPOSE 8000
+
+CMD ["verba", "start","--port","8000","--host","0.0.0.0"]
