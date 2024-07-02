@@ -16,6 +16,8 @@ google_project ?= lab5-wvai-dev1
 
 VERSION := $(file < VERSION)
 
+wvai_version := 1.25.6
+
 app_id := wvai
 
 google_organization :=
@@ -36,6 +38,8 @@ ifeq ($(wildcard $(terraform_tfvars)),)
   $(error ==> Missing configuration file $(terraform_tfvars) <==)
 endif
 
+OPENAI_API_KEY := $(shell pass weaviate/OPENAI_API_KEY)
+
 ###############################################################################
 # Info
 ###############################################################################
@@ -53,8 +57,13 @@ help:
 settings: terraform-config
 	$(call header,Settings)
 	$(call var,repo_version,$(VERSION))
+	$(call var,weaviate_version,$(wvai_version))
 	$(call var,google_project,$(google_project))
 	$(call var,gcloud_project,$(shell gcloud config list --format=json | jq -r '.core.project'))
+
+secretes:
+	$(call header,Secrets)
+	$(call var,OPENAI_API_KEY,$(OPENAI_API_KEY))
 
 ###############################################################################
 # End-to-End Pipeline
@@ -65,6 +74,32 @@ deploy : terraform
 shutdown: terraform-destroy-selected
 
 clean: terraform-clean gke-clean
+
+###############################################################################
+# Docker
+###############################################################################
+
+.docker-init:
+	$(call header,Create Weaviate volume)
+	docker volume create weaviate
+	touch $@
+
+docker-start: .docker-init
+	$(call header,Start Docker Compose)
+	docker compose up --detach --remove-orphans --wait
+
+docker-status:
+	$(call header,Status Docker Compose)
+	docker container ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+	echo
+
+docker-stop:
+	$(call header,Stop Docker Compose)
+	docker compose down --remove-orphans
+
+docker-clean: docker-stop
+	$(call header,Remove Docker volumes)
+	docker volume rm weaviate || true
 
 ###############################################################################
 # Terraform

@@ -1,0 +1,32 @@
+---
+services:
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:${wvai_version:-1.25.4}
+    container_name: weaviate
+    hostname: weaviate
+    command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
+    ports: ["8080:8080", "50051:50051"]
+    environment:
+      OPENAI_APIKEY: ${OPENAI_API_KEY:?err}
+      QUERY_DEFAULTS_LIMIT: 25
+      DEFAULT_VECTORIZER_MODULE: text2vec-openai
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: true
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      ENABLE_MODULES: text2vec-openai, generative-openai, qna-openai
+      CLUSTER_HOSTNAME: node1
+    healthcheck:
+        test: wget --no-verbose --tries=3 --spider http://localhost:8080/v1/.well-known/ready || exit 1
+        interval: 5s
+        timeout: 2s
+        retries: 5
+        start_period: 10s
+    volumes: ["weaviate:/var/lib/weaviate"]
+
+networks:
+  default:
+    name: weaviate
+
+volumes:
+  weaviate:
+    name: weaviate
+    external: true
