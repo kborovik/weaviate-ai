@@ -1,0 +1,57 @@
+---
+services:
+
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:${WEAVIATE_VERSION:-1.25.6}
+    container_name: weaviate-0
+    hostname: weaviate-0
+    command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
+    ports: ["8080:8080", "50051:50051"]
+    environment:
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: true
+      CLUSTER_HOSTNAME: weaviate-0
+      DEFAULT_VECTORIZER_MODULE: text2vec-openai
+      ENABLE_MODULES: text2vec-openai, generative-openai, qna-openai, text2vec-cohere
+      OPENAI_APIKEY: ${OPENAI_API_KEY:?err}
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      QUERY_DEFAULTS_LIMIT: 25
+    healthcheck:
+        test: wget --no-verbose --tries=3 --spider http://localhost:8080/v1/.well-known/ready || exit 1
+        interval: 5s
+        timeout: 2s
+        retries: 5
+        start_period: 10s
+    volumes: ["weaviate:/var/lib/weaviate"]
+
+  verba:
+    image: ${docker_image:?err}:${VERBA_VERSION:?err}
+    container_name: verba-0
+    hostname: verba-0
+    command: ["verba", "start","--port","8000","--host","0.0.0.0"]
+    ports: ["8000:8000"]
+    environment:
+      WEAVIATE_URL_VERBA: http://weaviate-0:8080
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?err}
+      OPENAI_MODEL: gpt-4o
+    healthcheck:
+      test: wget --no-verbose --tries=3 --spider http://localhost:8000 || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
+    volumes: ["verba:/data"]
+    depends_on:
+      weaviate:
+        condition: service_healthy
+
+networks:
+  default:
+    name: weaviate
+
+volumes:
+  weaviate:
+    name: weaviate
+    external: true
+  verba:
+    name: verba
+    external: true
