@@ -17,7 +17,7 @@ google_project ?= lab5-wvai-dev1
 WEAVIATE_VERSION := 1.25.6
 VERBA_VERSION := 1.0.3
 
-OPENAI_API_KEY := $(shell pass weaviate/OPENAI_API_KEY)
+OPENAI_API_KEY := $(shell pass openai/OPENAI_API_KEY)
 
 app_id := wvai
 
