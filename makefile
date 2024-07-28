@@ -330,13 +330,13 @@ prompt:
 # Errors
 ###############################################################################
 ifeq ($(shell which gcloud),)
-  $(error ==> Missing Google CLI https://cloud.google.com/sdk/docs/install <==)
+  $(error ==> Install Google CLI https://cloud.google.com/sdk/docs/install <==)
 endif
 
 ifeq ($(shell which terraform),)
-  $(error ==> Missing terraform https://www.terraform.io/downloads <==)
+  $(error ==> Install terraform https://www.terraform.io/downloads <==)
 endif
 
 ifeq ($(shell which helm),)
-  $(error ==> Missing helm https://helm.sh/ <==)
+  $(error ==> Install helm https://helm.sh/ <==)
 endif
